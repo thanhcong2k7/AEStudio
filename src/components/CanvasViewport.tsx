@@ -70,6 +70,11 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({ state }) => {
   const displayWidth = Math.round(comp.width * effectiveZoom);
   const displayHeight = Math.round(comp.height * effectiveZoom);
 
+  const [currentFps, setCurrentFps] = useState<number>(comp.fps || 30);
+  const lastRenderTimeRef = useRef<number>(performance.now());
+  const smoothedFpsRef = useRef<number>(comp.fps || 30);
+  const lastFpsUpdateRef = useRef<number>(performance.now());
+
   // Core render call using latest state
   const renderFrame = useCallback(() => {
     if (!canvasRef.current) return;
@@ -84,16 +89,33 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({ state }) => {
       mediaElements: store.mediaCache,
       isPlaying: currentState.isPlaying,
     });
+
+    // Real-time smoothed FPS computation
+    const now = performance.now();
+    const delta = now - lastRenderTimeRef.current;
+    lastRenderTimeRef.current = now;
+    if (delta > 2 && delta < 500) {
+      const instantFps = 1000 / delta;
+      smoothedFpsRef.current = smoothedFpsRef.current * 0.8 + instantFps * 0.2;
+    }
+    if (now - lastFpsUpdateRef.current > 200) {
+      lastFpsUpdateRef.current = now;
+      setCurrentFps(currentState.isPlaying ? smoothedFpsRef.current : (currentState.project.comp.fps || 30));
+    }
   }, []);
 
-  // Main automatic preview render hook: schedules render on rAF whenever any change occurs
+  // Continuous smooth render pipeline: schedules rAF without cancelling in-flight playback frames
   useEffect(() => {
     let animId: number | null = null;
+    let isScheduled = false;
+
     const scheduleRender = () => {
-      if (animId !== null) cancelAnimationFrame(animId);
+      if (isScheduled) return;
+      isScheduled = true;
       animId = requestAnimationFrame(() => {
-        renderFrame();
+        isScheduled = false;
         animId = null;
+        renderFrame();
       });
     };
 
@@ -101,7 +123,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({ state }) => {
     scheduleRender();
 
     // Subscribe to store notifications directly - ensures with every single change anywhere
-    // (effects, layer properties, time, snapping, colors, etc.), the preview viewport automatically updates
+    // and on every playback tick, the preview viewport updates smoothly at full frame rate
     const unsubscribe = store.subscribe(() => {
       scheduleRender();
     });
@@ -125,7 +147,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({ state }) => {
         video.removeEventListener('loadeddata', handler);
       }
     };
-  }, [renderFrame, comp, currentTime, previewQuality, selectedLayerIds, state.isPlaying, store.version]);
+  }, [renderFrame]);
 
   // Selected layer reference
   const selectedLayer = layers.find((l) => selectedLayerIds.includes(l.id));
@@ -570,6 +592,15 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({ state }) => {
         <span>{comp.fps} fps</span>
         <span>·</span>
         <span className="text-blue-400">{Math.round(effectiveZoom * 100)}%</span>
+      </div>
+
+      {/* Bottom Right Floating Current FPS Tag */}
+      <div className="absolute bottom-3 right-4 bg-[#181a1f]/90 backdrop-blur border border-[#2b2e36] px-2.5 py-1 rounded text-[11px] font-mono flex items-center gap-1.5 shadow-lg select-none pointer-events-none z-30">
+        <span className={`w-2 h-2 rounded-full ${state.isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+        <span className="text-slate-400 font-medium">FPS:</span>
+        <span className={`font-semibold ${state.isPlaying ? 'text-emerald-400' : 'text-slate-200'}`}>
+          {currentFps.toFixed(1)}
+        </span>
       </div>
     </div>
   );

@@ -150,9 +150,43 @@ class StateStore {
   public rehydrateProjectAssets(project: Project) {
     if (!project || !project.assets) return;
     for (const asset of project.assets) {
+      const mediaSrc = asset.url || asset.dataBase64;
+
+      // Rehydrate DOM media elements in mediaCache
+      if (mediaSrc && !this.mediaCache.has(asset.id)) {
+        if (asset.type === 'image') {
+          const img = new Image();
+          img.src = mediaSrc;
+          this.mediaCache.set(asset.id, img);
+        } else if (asset.type === 'video') {
+          const video = document.createElement('video');
+          video.src = mediaSrc;
+          video.muted = true;
+          video.playsInline = true;
+          video.preload = 'metadata';
+          this.mediaCache.set(asset.id, video);
+        }
+      }
+
+      // Rehydrate audio buffer
       if (this.audioBufferCache.has(asset.id)) {
         asset.audioBuffer = this.audioBufferCache.get(asset.id);
+      } else if ((asset.type === 'audio' || asset.type === 'video') && mediaSrc) {
+        // Decode in background if not cached yet
+        fetch(mediaSrc)
+          .then((res) => res.arrayBuffer())
+          .then((buf) => decodeAudioData(buf))
+          .then((audioBuf) => {
+            asset.audioBuffer = audioBuf;
+            if (!asset.duration) asset.duration = audioBuf.duration;
+            asset.waveformPeaks = computeWaveformPeaks(audioBuf, 2000);
+            this.audioBufferCache.set(asset.id, audioBuf);
+            this.waveformPeaksCache.set(asset.id, asset.waveformPeaks);
+            this.notify();
+          })
+          .catch(() => {});
       }
+
       if (this.waveformPeaksCache.has(asset.id)) {
         asset.waveformPeaks = this.waveformPeaksCache.get(asset.id);
       } else if (asset.waveformPeaks && !(asset.waveformPeaks instanceof Float32Array)) {

@@ -25,82 +25,13 @@ export function createDefaultProject(): Project {
     version: CURRENT_PROJECT_VERSION,
     name: 'Untitled Composition',
     comp: { ...DEFAULT_COMP_SETTINGS },
-    layers: [
-      {
-        id: 'layer_bg',
-        name: 'Background Solid',
-        type: 'solid',
-        inPoint: 0,
-        outPoint: 10.0,
-        startTime: 0,
-        duration: 10.0,
-        visible: true,
-        locked: false,
-        solo: false,
-        mute: false,
-        blendMode: 'normal',
-        width: 1920,
-        height: 1080,
-        solidColor: '#1a1c23',
-        position: { value: [960, 540], keyframes: [], animated: false },
-        scale: { value: [100, 100], keyframes: [], animated: false },
-        rotation: { value: 0, keyframes: [], animated: false },
-        anchor: { value: [960, 540], keyframes: [], animated: false },
-        opacity: { value: 100, keyframes: [], animated: false },
-        masks: [],
-        effects: [],
-      },
-      {
-        id: 'layer_title',
-        name: 'AEStudio Motion',
-        type: 'text',
-        inPoint: 0,
-        outPoint: 10.0,
-        startTime: 0,
-        duration: 10.0,
-        visible: true,
-        locked: false,
-        solo: false,
-        mute: false,
-        blendMode: 'normal',
-        width: 1000,
-        height: 200,
-        textData: {
-          text: 'AEStudio\nMotion Graphics & Video Editor',
-          fontFamily: 'Plus Jakarta Sans',
-          fontSize: 64,
-          fillColor: '#ffffff',
-          textAlign: 'center',
-          lineHeight: 1.25,
-          letterSpacing: 2,
-        },
-        position: {
-          value: [960, 540],
-          keyframes: [
-            { id: 'kf_1', time: 0, value: [960, 600], interpolation: 'ease' },
-            { id: 'kf_2', time: 1.5, value: [960, 540], interpolation: 'ease' },
-          ],
-          animated: true,
-        },
-        scale: { value: [100, 100], keyframes: [], animated: false },
-        rotation: { value: 0, keyframes: [], animated: false },
-        anchor: { value: [500, 100], keyframes: [], animated: false },
-        opacity: {
-          value: 100,
-          keyframes: [
-            { id: 'kf_op1', time: 0, value: 0, interpolation: 'linear' },
-            { id: 'kf_op2', time: 1.0, value: 100, interpolation: 'linear' },
-          ],
-          animated: true,
-        },
-        masks: [],
-        effects: [],
-      },
-    ],
+    layers: [],
     assets: [],
     customFonts: [],
   };
 }
+
+import JSZip from 'jszip';
 
 /**
  * Serializes project to JSON, optionally omitting heavy base64 data if not requested
@@ -113,6 +44,121 @@ export function exportProjectToJson(project: Project, embedMedia: boolean = true
     }
   }
   return JSON.stringify(cloned, null, 2);
+}
+
+/**
+ * Exports project as a portable .aes ZIP container containing:
+ * - project.json (clean comp settings, tracks, keyframes, effect params)
+ * - media/ (raw binary media files for video, audio, image, and font assets)
+ * Extremely memory efficient compared to embedding multi-gigabyte base64 strings!
+ */
+export async function exportProjectToAes(project: Project): Promise<Blob> {
+  const zip = new JSZip();
+  const cloned = JSON.parse(JSON.stringify(project)) as Project;
+  const mediaFolder = zip.folder('media');
+
+  for (const asset of cloned.assets) {
+    // Strip giant base64 strings from project.json since raw binaries live in media/
+    delete asset.dataBase64;
+
+    const sourceUrl = asset.url || asset.dataBase64;
+    if (sourceUrl) {
+      try {
+        const res = await fetch(sourceUrl);
+        const arrayBuf = await res.arrayBuffer();
+        const safeName = `${asset.id}_${asset.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        mediaFolder?.file(safeName, arrayBuf);
+        (asset as any).mediaPath = `media/${safeName}`;
+      } catch (err) {
+        console.warn(`Could not bundle media for asset ${asset.name}:`, err);
+      }
+    }
+  }
+
+  // Bundle custom TTF/OTF fonts
+  if (cloned.customFonts && cloned.customFonts.length > 0) {
+    for (const font of cloned.customFonts) {
+      const fontSrc = font.url || font.dataBase64;
+      if (fontSrc) {
+        try {
+          const res = await fetch(fontSrc);
+          const fontBuf = await res.arrayBuffer();
+          const safeFontName = `font_${font.family.replace(/[^a-zA-Z0-9._-]/g, '_')}.ttf`;
+          mediaFolder?.file(safeFontName, fontBuf);
+          (font as any).fontPath = `media/${safeFontName}`;
+          delete font.dataBase64;
+        } catch (err) {
+          console.warn('Could not bundle font:', err);
+        }
+      }
+    }
+  }
+
+  zip.file('project.json', JSON.stringify(cloned, null, 2));
+
+  return await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+}
+
+/**
+ * Loads and extracts an .aes ZIP package, restoring all binary media assets into Object URLs
+ */
+export async function loadProjectFromAes(file: File | Blob): Promise<Project> {
+  const zip = await JSZip.loadAsync(file);
+  const projectFile = zip.file('project.json');
+  if (!projectFile) {
+    throw new Error('Invalid .aes package: Missing project.json');
+  }
+
+  const jsonStr = await projectFile.async('text');
+  const project = loadProjectFromJson(jsonStr);
+
+  // Restore media assets from media/ folder inside zip
+  for (const asset of project.assets) {
+    const mediaPath = (asset as any).mediaPath || `media/${asset.id}_${asset.name}`;
+    let zipEntry = zip.file(mediaPath);
+    if (!zipEntry) {
+      const match = Object.keys(zip.files).find(
+        (p) => p.includes(asset.id) || p.endsWith(asset.name)
+      );
+      if (match) zipEntry = zip.file(match);
+    }
+
+    if (zipEntry) {
+      const blob = await zipEntry.async('blob');
+      const blobUrl = URL.createObjectURL(blob);
+      asset.url = blobUrl;
+    }
+  }
+
+  // Restore custom fonts
+  if (project.customFonts && project.customFonts.length > 0) {
+    for (const font of project.customFonts) {
+      const fontPath = (font as any).fontPath;
+      let zipEntry = fontPath ? zip.file(fontPath) : null;
+      if (!zipEntry) {
+        const match = Object.keys(zip.files).find((p) => p.includes(font.family));
+        if (match) zipEntry = zip.file(match);
+      }
+      if (zipEntry) {
+        const fontBlob = await zipEntry.async('blob');
+        const fontUrl = URL.createObjectURL(fontBlob);
+        font.url = fontUrl;
+        try {
+          const fontFace = new FontFace(font.family, `url(${fontUrl})`);
+          await fontFace.load();
+          document.fonts.add(fontFace);
+        } catch (e) {
+          console.warn('Failed to load font from .aes:', e);
+        }
+      }
+    }
+  }
+
+  return project;
 }
 
 /**

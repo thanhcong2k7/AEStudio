@@ -19,7 +19,12 @@ import {
   FileJson,
 } from 'lucide-react';
 import { store, EditorState } from '../engine/state';
-import { exportProjectToJson, loadProjectFromJson } from '../engine/projectIo';
+import {
+  exportProjectToJson,
+  loadProjectFromJson,
+  exportProjectToAes,
+  loadProjectFromAes,
+} from '../engine/projectIo';
 import { PreviewQuality } from '../engine/types';
 
 interface TopBarProps {
@@ -30,6 +35,7 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({ state, onOpenCompSettings, onOpenExport }) => {
   const [activeMenu, setActiveMenu] = useState<'file' | 'edit' | 'layer' | null>(null);
+  const [isPackagingAes, setIsPackagingAes] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const projectInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,20 +48,40 @@ export const TopBar: React.FC<TopBarProps> = ({ state, onOpenCompSettings, onOpe
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}:${String(f).padStart(2, '0')}`;
   };
 
-  const handleOpenProjectFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOpenProjectFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const loaded = loadProjectFromJson(reader.result as string);
+
+    try {
+      if (file.name.endsWith('.aes')) {
+        const loaded = await loadProjectFromAes(file);
         store.loadProject(loaded);
-      } catch (err: any) {
-        alert(err.message || 'Failed to open project file');
+      } else {
+        const text = await file.text();
+        const loaded = loadProjectFromJson(text);
+        store.loadProject(loaded);
       }
-    };
-    reader.readAsText(file);
+    } catch (err: any) {
+      alert(err.message || 'Failed to open project file');
+    }
     e.target.value = '';
+  };
+
+  const handleSaveProjectAes = async () => {
+    try {
+      setIsPackagingAes(true);
+      const blob = await exportProjectToAes(state.project);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.project.name.toLowerCase().replace(/\s+/g, '_') || 'aestudio_project'}.aes`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || 'Failed to package .aes project');
+    } finally {
+      setIsPackagingAes(false);
+    }
   };
 
   const handleSaveProject = (embedMedia: boolean = true) => {
@@ -94,7 +120,7 @@ export const TopBar: React.FC<TopBarProps> = ({ state, onOpenCompSettings, onOpe
         type="file"
         ref={projectInputRef}
         className="hidden"
-        accept=".json"
+        accept=".aes,.json,.ae.json"
         onChange={handleOpenProjectFile}
       />
 
@@ -137,19 +163,36 @@ export const TopBar: React.FC<TopBarProps> = ({ state, onOpenCompSettings, onOpe
                     projectInputRef.current?.click();
                     setActiveMenu(null);
                   }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-[#2d62ea] hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-3 py-1.5 hover:bg-[#2d62ea] hover:text-white flex items-center justify-between"
                 >
-                  <FolderOpen className="w-3.5 h-3.5" /> Open JSON...
+                  <span className="flex items-center gap-2">
+                    <FolderOpen className="w-3.5 h-3.5" /> Open Project (.aes / .json)...
+                  </span>
+                  <span className="text-[10px] text-slate-400">Ctrl+O</span>
+                </button>
+                <button
+                  disabled={isPackagingAes}
+                  onClick={() => {
+                    handleSaveProjectAes();
+                    setActiveMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-[#2d62ea] hover:text-white flex items-center justify-between text-emerald-300 font-medium"
+                >
+                  <span className="flex items-center gap-2">
+                    <Save className="w-3.5 h-3.5 text-emerald-400" />
+                    {isPackagingAes ? 'Bundling .aes...' : 'Save Project (.aes Package)'}
+                  </span>
+                  <span className="text-[10px] text-emerald-400/80">Recommended</span>
                 </button>
                 <button
                   onClick={() => {
                     handleSaveProject(true);
                     setActiveMenu(null);
                   }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-[#2d62ea] hover:text-white flex items-center justify-between"
+                  className="w-full text-left px-3 py-1.5 hover:bg-[#2d62ea] hover:text-white flex items-center justify-between text-slate-300"
                 >
                   <span className="flex items-center gap-2">
-                    <Save className="w-3.5 h-3.5" /> Save Project JSON
+                    <FileJson className="w-3.5 h-3.5 text-slate-400" /> Save Project (.json)
                   </span>
                   <span className="text-[10px] text-slate-400">Ctrl+S</span>
                 </button>

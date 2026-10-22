@@ -10,13 +10,14 @@ A browser-based motion graphics, visual effects, and video compositing suite ins
   - **Distort & Geometry**: Corner Pin, Bulge, Ripple, Twirl, Wave Warp, Polar Coordinates, Mirror, Displace.
   - **Generate & Stylize**: Linear/Radial Gradients, Noise, Vignette, Grid, Checkerboard, Stroke, Drop Shadow, Glow.
   - **Audio & Procedural**: FFT Audio Spectrum / Waveform visualization, procedural wiggle / jitter evaluators.
-- **Interactive Canvas Viewport**: Real-time rendering, interactive transform gizmos, rotation handles, aspect-ratio scaling, and snapping guidelines.
+- **Interactive Canvas Viewport**: Real-time rendering, interactive transform gizmos, rotation handles, aspect-ratio scaling, snapping guidelines, and live real-time FPS counter.
 - **Inspector Panel**: Layer transform properties (position, scale, rotation, opacity, anchor point), blending modes, effect parameter controls, and per-property keyframe toggles.
-- **Media Ingestion & Asset Library**: Drag-and-drop local images, video clips, and audio files with auto-waveform extraction.
+- **Media Ingestion & Asset Library**: Drag-and-drop local images, video clips, and audio files with auto-waveform extraction and memory-safe streaming for long media (1h+).
 - **Exporting & Serialization**:
-  - Video rendering to WebM via canvas capture stream and Web Audio destination.
+  - Portable `.aes` ZIP project container packaging `project.json` and bundled media assets with zero base64 bloat.
+  - Video rendering to MP4/WebM via canvas capture stream and Web Audio destination.
   - Single-frame high-resolution PNG export.
-  - Full project import/export via structured JSON.
+  - Full project import/export via structured `.ae.json`.
 
 ## Tech Stack
 

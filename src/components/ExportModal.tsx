@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { EditorState, store } from '../engine/state';
 import { renderComposition } from '../engine/renderer';
-import { exportProjectToJson } from '../engine/projectIo';
+import { exportProjectToJson, exportProjectToAes } from '../engine/projectIo';
 import { Project } from '../engine/types';
 
 interface ExportModalProps {
@@ -438,6 +438,29 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     }, 'image/png');
   };
 
+  const [isExportingAes, setIsExportingAes] = useState(false);
+
+  // Project .aes Package Export (ZIP Container)
+  const handleExportAes = async () => {
+    try {
+      setIsExportingAes(true);
+      const blob = await exportProjectToAes(state.project);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = state.project.name.replace(/[^a-zA-Z0-9_-]/g, '_') || 'AEStudio_Project';
+      a.href = url;
+      a.download = `${safeName}.aes`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (err: any) {
+      alert('Failed to package .aes container: ' + (err.message || err));
+    } finally {
+      setIsExportingAes(false);
+    }
+  };
+
   // Project JSON Export
   const handleExportJson = (embedMedia: boolean) => {
     const jsonStr = exportProjectToJson(state.project, embedMedia);
@@ -512,7 +535,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             }`}
           >
             <FileJson className="w-4 h-4" />
-            <span>Project File (.ae.json)</span>
+            <span>Project Package (.aes / .json)</span>
           </button>
         </div>
 
@@ -993,64 +1016,101 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: PROJECT JSON EXPORT */}
+          {/* TAB 3: PROJECT PACKAGE / JSON EXPORT */}
           {activeTab === 'json' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
+              {/* Primary Recommended: .aes ZIP Archive */}
+              <div className="bg-[#14151b] border-2 border-emerald-500/40 rounded-xl p-5 relative overflow-hidden shadow-xl">
+                <div className="absolute top-3 right-3 px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold tracking-wider uppercase border border-emerald-500/30">
+                  Recommended
+                </div>
+                <div className="flex items-start gap-3.5 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                    <FileJson className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>Portable .aes Project Package</span>
+                      <span className="text-[11px] text-emerald-400 font-normal">(ZIP Container)</span>
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                      Packages the composition state alongside <strong>original raw binary video, audio, image, and font files</strong> inside a compressed archive.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-2 text-[11px] text-slate-300 border-y border-[#262834] my-3">
+                  <div className="flex items-center gap-1.5 text-emerald-300">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>No Base64 Bloat (Fast Save)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-emerald-300">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Bundles {state.project.assets.length} Media Files</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-emerald-300">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>100% Cross-Browser Portable</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isExportingAes}
+                  onClick={handleExportAes}
+                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition-all active:scale-[0.99] disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>{isExportingAes ? 'Packaging .aes Container...' : 'Download .aes Project Package'}</span>
+                </button>
+              </div>
+
+              {/* Secondary Options Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Full Project File */}
-                <div className="bg-[#14151b] border border-[#262832] rounded-xl p-5 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                      <FileJson className="w-4 h-4" />
+                {/* Full Project File (.ae.json) */}
+                <div className="bg-[#14151b] border border-[#262832] rounded-xl p-4 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                        <FileJson className="w-3.5 h-3.5" />
+                      </div>
+                      <h3 className="text-xs font-semibold text-white">Full JSON Bundle (.ae.json)</h3>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-white">Full Project Bundle (.ae.json)</h3>
-                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                        Contains complete composition settings, timeline layers, keyframe tracks, expressions, and <strong>embedded media assets</strong>.
-                      </p>
-                    </div>
-                    <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside pt-1">
-                      <li>Self-contained & 100% portable</li>
-                      <li>Can be opened on any machine or browser</li>
-                      <li>Includes uploaded audio, video, and image buffers</li>
-                    </ul>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Serializes all comp settings and embedded base64 media data into a single text JSON file.
+                    </p>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => handleExportJson(true)}
-                    className="mt-6 w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+                    className="mt-4 w-full py-2 px-3 bg-[#20222b] hover:bg-[#2b2e3b] text-slate-200 border border-[#323544] font-medium rounded-lg text-xs flex items-center justify-center gap-2 transition-colors"
                   >
-                    <Download className="w-4 h-4" />
-                    <span>Download Full Project Bundle</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Full JSON</span>
                   </button>
                 </div>
 
-                {/* Lightweight Project File */}
-                <div className="bg-[#14151b] border border-[#262832] rounded-xl p-5 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
-                      <Sliders className="w-4 h-4" />
+                {/* Lightweight Project File (.ae.json) */}
+                <div className="bg-[#14151b] border border-[#262832] rounded-xl p-4 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-slate-500/20 text-slate-400 flex items-center justify-center border border-slate-500/30">
+                        <Sliders className="w-3.5 h-3.5" />
+                      </div>
+                      <h3 className="text-xs font-semibold text-white">Lightweight JSON (.ae.json)</h3>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-white">Lightweight Project (.ae.json)</h3>
-                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                        Exports the project structure, solid/text/shape layers, and effect parameters <strong>without embedded base64 media data</strong>.
-                      </p>
-                    </div>
-                    <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside pt-1">
-                      <li>Very small file size (~a few kilobytes)</li>
-                      <li>Ideal for templates, text motion graphics, and version control</li>
-                      <li>Media assets need to be relinked when reopened</li>
-                    </ul>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Exports project timeline tracks, keyframes, and effect parameters without heavy binary media data.
+                    </p>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => handleExportJson(false)}
-                    className="mt-6 w-full py-2.5 px-4 bg-[#22242c] hover:bg-[#2c303c] text-slate-200 border border-[#353846] font-medium rounded-lg text-xs flex items-center justify-center gap-2 transition-colors"
+                    className="mt-4 w-full py-2 px-3 bg-[#20222b] hover:bg-[#2b2e3b] text-slate-200 border border-[#323544] font-medium rounded-lg text-xs flex items-center justify-center gap-2 transition-colors"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-3.5 h-3.5" />
                     <span>Download Lightweight JSON</span>
                   </button>
                 </div>
