@@ -1,11 +1,38 @@
-<div align="center">
+# Remix AEStudio
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+A browser-based motion graphics, visual effects, and video compositing suite inspired by professional desktop NLEs and motion software.
 
-  <h1>Built with AI Studio</h2>
+## Features
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+- **Multi-Track Timeline**: Layer ordering, track controls (mute, solo, lock, hide), in/out trimming, keyframe interpolation, and property twirling.
+- **29-Effect Compositing Engine**:
+  - **Color & Channel**: Curves, Levels, Hue/Saturation, Color Balance, Invert, Tint, Posterize, Threshold.
+  - **Distort & Geometry**: Corner Pin, Bulge, Ripple, Twirl, Wave Warp, Polar Coordinates, Mirror, Displace.
+  - **Generate & Stylize**: Linear/Radial Gradients, Noise, Vignette, Grid, Checkerboard, Stroke, Drop Shadow, Glow.
+  - **Audio & Procedural**: FFT Audio Spectrum / Waveform visualization, procedural wiggle / jitter evaluators.
+- **Interactive Canvas Viewport**: Real-time rendering, interactive transform gizmos, rotation handles, aspect-ratio scaling, and snapping guidelines.
+- **Inspector Panel**: Layer transform properties (position, scale, rotation, opacity, anchor point), blending modes, effect parameter controls, and per-property keyframe toggles.
+- **Media Ingestion & Asset Library**: Drag-and-drop local images, video clips, and audio files with auto-waveform extraction.
+- **Exporting & Serialization**:
+  - Video rendering to WebM via canvas capture stream and Web Audio destination.
+  - Single-frame high-resolution PNG export.
+  - Full project import/export via structured JSON.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Tech Stack
 
-</div>
+- **Framework**: React 19 + TypeScript + Vite
+- **Styling**: Tailwind CSS v4 + Plus Jakarta Sans & JetBrains Mono typography
+- **Icons & Motion**: Lucide React + Motion
+
+## Getting Started
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```

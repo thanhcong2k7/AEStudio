@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function() {
+        var origFetch = window.fetch;
+
+        // 1. Define accessor with setter on Window.prototype if present
+        try {
+          if (typeof Window !== 'undefined' && Window.prototype) {
+            Object.defineProperty(Window.prototype, 'fetch', {
+              get: function() { return origFetch; },
+              set: function(fn) { origFetch = fn; },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        } catch (e) {}
+
+        // 2. Define writable property directly on window
+        try {
+          Object.defineProperty(window, 'fetch', {
+            value: origFetch,
+            writable: true,
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {
+          try {
+            Object.defineProperty(window, 'fetch', {
+              get: function() { return origFetch; },
+              set: function(fn) { origFetch = fn; },
+              configurable: true,
+              enumerable: true
+            });
+          } catch (e2) {}
+        }
+
+        // 3. Catch and suppress any extension or fetch-interceptor errors
+        var isExtensionError = function(msg, src, err) {
+          var str = String(msg || '') + ' ' + String(src || '') + ' ' + (err && err.stack ? String(err.stack) : '');
+          return str.indexOf('chrome-extension://') !== -1 ||
+                 str.indexOf('requests.js') !== -1 ||
+                 str.indexOf('Cannot set property fetch') !== -1;
+        };
+
+        window.addEventListener('error', function(e) {
+          if (isExtensionError(e.message, e.filename, e.error)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+
+        var oldOnError = window.onerror;
+        window.onerror = function(msg, src, line, col, err) {
+          if (isExtensionError(msg, src, err)) {
+            return true;
+          }
+          if (typeof oldOnError === 'function') {
+            return oldOnError.apply(this, arguments);
+          }
+          return false;
+        };
+
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = e.reason;
+          if (isExtensionError(reason && reason.message, '', reason)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Remix AEStudio</title>
+    <meta name="description" content="Professional browser-based motion-graphics and video editor with multi-track timeline, keyframing, and 29-effect compositing engine." />
+    <meta property="og:title" content="Remix AEStudio" />
+    <meta property="og:description" content="Professional browser-based motion-graphics and video editor with multi-track timeline, keyframing, and 29-effect compositing engine." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#121316] text-[#e2e4e9] antialiased select-none overflow-hidden h-screen w-screen">
+    <div id="root" class="h-full w-full"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
