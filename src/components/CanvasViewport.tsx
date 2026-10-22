@@ -70,21 +70,62 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({ state }) => {
   const displayWidth = Math.round(comp.width * effectiveZoom);
   const displayHeight = Math.round(comp.height * effectiveZoom);
 
-  // Render composition whenever props or currentTime update
+  // Core render call using latest state
+  const renderFrame = useCallback(() => {
+    if (!canvasRef.current) return;
+    const currentState = store.getState();
+    renderComposition(canvasRef.current, {
+      comp: currentState.project.comp,
+      layers: currentState.project.layers,
+      assets: currentState.project.assets,
+      time: currentState.currentTime,
+      quality: currentState.previewQuality,
+      selectedLayerIds: currentState.selectedLayerIds,
+      mediaElements: store.mediaCache,
+      isPlaying: currentState.isPlaying,
+    });
+  }, []);
+
+  // Main automatic preview render hook: schedules render on rAF whenever any change occurs
   useEffect(() => {
-    if (canvasRef.current) {
-      renderComposition(canvasRef.current, {
-        comp,
-        layers,
-        assets: state.project.assets,
-        time: currentTime,
-        quality: previewQuality,
-        selectedLayerIds,
-        mediaElements: store.mediaCache,
-        isPlaying: state.isPlaying,
+    let animId: number | null = null;
+    const scheduleRender = () => {
+      if (animId !== null) cancelAnimationFrame(animId);
+      animId = requestAnimationFrame(() => {
+        renderFrame();
+        animId = null;
       });
+    };
+
+    // Initial render
+    scheduleRender();
+
+    // Subscribe to store notifications directly - ensures with every single change anywhere
+    // (effects, layer properties, time, snapping, colors, etc.), the preview viewport automatically updates
+    const unsubscribe = store.subscribe(() => {
+      scheduleRender();
+    });
+
+    // Auto-update viewport whenever video frames seek or load
+    const videoListeners: { video: HTMLVideoElement; handler: () => void }[] = [];
+    for (const el of store.mediaCache.values()) {
+      if (el instanceof HTMLVideoElement) {
+        const handler = () => scheduleRender();
+        el.addEventListener('seeked', handler);
+        el.addEventListener('loadeddata', handler);
+        videoListeners.push({ video: el, handler });
+      }
     }
-  }, [comp, layers, currentTime, previewQuality, selectedLayerIds, state.isPlaying]);
+
+    return () => {
+      if (animId !== null) cancelAnimationFrame(animId);
+      unsubscribe();
+      for (const { video, handler } of videoListeners) {
+        video.removeEventListener('seeked', handler);
+        video.removeEventListener('loadeddata', handler);
+      }
+    };
+  }, [renderFrame, comp, currentTime, previewQuality, selectedLayerIds, state.isPlaying, store.version]);
 
   // Selected layer reference
   const selectedLayer = layers.find((l) => selectedLayerIds.includes(l.id));

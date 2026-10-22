@@ -498,7 +498,7 @@ export const EFFECT_REGISTRY: EffectSpec[] = [
       p('displayOptions', 'Display Options', 0, popup(['Digital', 'Analog lines', 'Analog dots'])),
       p('sideOptions', 'Side Options', 0, popup(['Side A', 'Side B', 'Side A & B'])),
       p('durationAveraging', 'Duration Averaging', false, { type: 'checkbox' }),
-      p('compositeOnOriginal', 'Composite On Original', false, { type: 'checkbox' }),
+      p('compositeOnOriginal', 'Composite On Original (Keep Background Color)', false, { type: 'checkbox' }),
     ],
   },
   {
@@ -523,7 +523,7 @@ export const EFFECT_REGISTRY: EffectSpec[] = [
       p('outsideColor', 'Outside Color', [0.2, 0.4, 1.0, 1], { type: 'color' }),
       p('waveformOptions', 'Waveform Options', 0, popup(['Mono', 'Left', 'Right'])),
       p('displayOptions', 'Display Options', 1, popup(['Digital', 'Analog lines', 'Analog dots'])),
-      p('compositeOnOriginal', 'Composite On Original', false, { type: 'checkbox' }),
+      p('compositeOnOriginal', 'Composite On Original (Keep Background Color)', false, { type: 'checkbox' }),
     ],
   },
 ];

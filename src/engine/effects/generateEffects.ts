@@ -552,14 +552,30 @@ export function fxCCThreads(ctx: EffectCtx, input: ImageData): ImageData {
   return out;
 }
 
+// Reusable canvas pool for generate effects to avoid GC thrashing on 60fps playback
+let sharedFxCanvas: HTMLCanvasElement | null = null;
+let sharedFxCtx: CanvasRenderingContext2D | null = null;
+
+function getSharedFxCanvas(w: number, h: number) {
+  if (!sharedFxCanvas) {
+    sharedFxCanvas = document.createElement('canvas');
+    sharedFxCtx = sharedFxCanvas.getContext('2d', { willReadFrequently: true });
+  }
+  if (sharedFxCanvas.width !== w || sharedFxCanvas.height !== h) {
+    sharedFxCanvas.width = Math.max(1, w);
+    sharedFxCanvas.height = Math.max(1, h);
+  }
+  sharedFxCtx!.clearRect(0, 0, sharedFxCanvas.width, sharedFxCanvas.height);
+  return { canvas: sharedFxCanvas, c2d: sharedFxCtx! };
+}
+
 // 10. Audio Spectrum (ec.generate.audiospectrum)
 export function fxAudioSpectrum(ctx: EffectCtx, input: ImageData): ImageData {
   const { width, height } = input;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const c2d = canvas.getContext('2d')!;
+  const { c2d } = getSharedFxCanvas(width, height);
 
+  // When compositeOnOriginal is true, keep background color/image;
+  // when false (default), background is 100% transparent (background color removed)
   if (ctx.params.compositeOnOriginal) {
     c2d.putImageData(input, 0, 0);
   }
@@ -640,10 +656,7 @@ export function fxAudioSpectrum(ctx: EffectCtx, input: ImageData): ImageData {
 // 11. Audio Waveform (ec.generate.audiowaveform)
 export function fxAudioWaveform(ctx: EffectCtx, input: ImageData): ImageData {
   const { width, height } = input;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const c2d = canvas.getContext('2d')!;
+  const { c2d } = getSharedFxCanvas(width, height);
 
   if (ctx.params.compositeOnOriginal) {
     c2d.putImageData(input, 0, 0);

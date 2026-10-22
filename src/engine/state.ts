@@ -39,11 +39,12 @@ type StateListener = (state: EditorState) => void;
 class StateStore {
   private state: EditorState;
   private listeners: Set<StateListener> = new Set();
+  public version: number = 0; // Incremented on every change to trigger instant preview updates
 
-  // History stack for Undo / Redo
+  // History stack for Undo / Redo (limited to 30 with sanitized media assets to prevent memory overflow on 1h+ videos)
   private undoStack: string[] = []; // JSON snapshots of project
   private redoStack: string[] = [];
-  private readonly maxHistory = 120;
+  private readonly maxHistory = 30;
   private isContinuousAction = false;
   private continuousActionInitialSnapshot: string | null = null;
 
@@ -82,16 +83,31 @@ class StateStore {
     return () => this.listeners.delete(listener);
   }
 
-  private notify() {
+  public notify() {
+    this.version++;
+    // Create shallow copy of state to ensure all React hooks detect change
+    this.state = { ...this.state };
     for (const listener of this.listeners) {
       listener(this.state);
     }
   }
 
   // --- Snapshot & Undo / Redo ---
+  // Sanitizes snapshots by omitting heavy base64 strings so 1h+ videos don't balloon RAM in undo history
+  private getSanitizedSnapshot(): string {
+    const sanitized = {
+      ...this.state.project,
+      assets: this.state.project.assets.map((a) => {
+        const { dataBase64, ...rest } = a;
+        return rest;
+      }),
+    };
+    return JSON.stringify(sanitized);
+  }
+
   private pushSnapshot() {
     if (this.isContinuousAction) return;
-    const snap = JSON.stringify(this.state.project);
+    const snap = this.getSanitizedSnapshot();
     this.undoStack.push(snap);
     if (this.undoStack.length > this.maxHistory) {
       this.undoStack.shift();
@@ -102,7 +118,7 @@ class StateStore {
   public beginContinuousAction() {
     if (!this.isContinuousAction) {
       this.isContinuousAction = true;
-      this.continuousActionInitialSnapshot = JSON.stringify(this.state.project);
+      this.continuousActionInitialSnapshot = this.getSanitizedSnapshot();
     }
   }
 
@@ -155,7 +171,7 @@ class StateStore {
 
   public undo() {
     if (this.undoStack.length === 0) return;
-    const currentSnap = JSON.stringify(this.state.project);
+    const currentSnap = this.getSanitizedSnapshot();
     this.redoStack.push(currentSnap);
     const prevSnap = this.undoStack.pop()!;
     this.state.project = JSON.parse(prevSnap);
@@ -169,7 +185,7 @@ class StateStore {
 
   public redo() {
     if (this.redoStack.length === 0) return;
-    const currentSnap = JSON.stringify(this.state.project);
+    const currentSnap = this.getSanitizedSnapshot();
     this.undoStack.push(currentSnap);
     const nextSnap = this.redoStack.pop()!;
     this.state.project = JSON.parse(nextSnap);
@@ -892,6 +908,12 @@ class StateStore {
         }
       }
     }
+
+    // Force immutable references so React hooks and canvas renderers immediately detect property updates
+    this.state.project = {
+      ...this.state.project,
+      layers: this.state.project.layers.map((l) => (l.id === layerId ? { ...l } : l)),
+    };
   }
 
   // --- Effects Management ---
@@ -905,10 +927,24 @@ class StateStore {
     this.state.project.layers = this.state.project.layers.map((layer) => {
       if (!selSet.has(layer.id)) return layer;
       const inst = instantiateEffect(spec);
-      return {
+
+      let updatedLayer: Layer = {
         ...layer,
         effects: [...layer.effects, inst],
       };
+
+      // Requirement: adding Audio Spectrum will remove its background color
+      // Solid layers become transparent and compositeOnOriginal is set to false (transparent background)
+      if (effectId === 'ec.generate.audiospectrum' || effectId === 'ec.generate.audiowaveform') {
+        if (updatedLayer.type === 'solid' || updatedLayer.solidColor) {
+          updatedLayer.solidColor = 'transparent';
+        }
+        if (inst.params['compositeOnOriginal']) {
+          inst.params['compositeOnOriginal'].value = false;
+        }
+      }
+
+      return updatedLayer;
     });
 
     this.notify();
@@ -950,7 +986,7 @@ class StateStore {
     this.notify();
   }
 
-  // --- Asset Management Flow ---
+  // --- Asset Management Flow (Optimized for long 1h+ videos) ---
   public async importFiles(files: FileList | File[]) {
     this.pushSnapshot();
 
@@ -965,30 +1001,45 @@ class StateStore {
       else if (fileType.startsWith('audio/')) type = 'audio';
       else if (fileName.endsWith('.ttf') || fileName.endsWith('.otf')) type = 'font';
 
-      // Read as Data URL
-      const dataBase64: string = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
+      // Memory optimization for long video/audio (>1h):
+      // For video and large media files, NEVER read the multi-gigabyte file into base64!
+      // Object URLs stream directly from local file descriptor with almost 0 RAM overhead.
+      const isLargeMedia = type === 'video' || (type === 'audio' && file.size > 15 * 1024 * 1024);
+      const blobUrl = URL.createObjectURL(file);
+
+      let dataBase64: string | undefined = undefined;
+      if (!isLargeMedia) {
+        try {
+          dataBase64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(blobUrl);
+            reader.readAsDataURL(file);
+          });
+        } catch {
+          dataBase64 = blobUrl;
+        }
+      }
+
+      const mediaUrl = dataBase64 || blobUrl;
 
       const asset: Asset = {
         id: assetId,
         name: fileName,
         type,
-        url: dataBase64,
+        url: mediaUrl,
         dataBase64,
       };
 
       if (type === 'font') {
         const fontName = fileName.replace(/\.[^/.]+$/, '');
         try {
-          const fontFace = new FontFace(fontName, `url(${dataBase64})`);
+          const fontFace = new FontFace(fontName, `url(${mediaUrl})`);
           await fontFace.load();
           document.fonts.add(fontFace);
           this.state.project.customFonts.push({
             family: fontName,
-            url: dataBase64,
+            url: mediaUrl,
             dataBase64,
           });
         } catch (err) {
@@ -997,7 +1048,7 @@ class StateStore {
       } else if (type === 'image') {
         // Load image dimensions
         const img = new Image();
-        img.src = dataBase64;
+        img.src = mediaUrl;
         await new Promise((res) => {
           img.onload = res;
           img.onerror = res;
@@ -1005,29 +1056,59 @@ class StateStore {
         asset.width = img.naturalWidth || 1920;
         asset.height = img.naturalHeight || 1080;
         this.mediaCache.set(assetId, img);
-      } else if (type === 'audio' || type === 'video') {
-        // Decode audio for waveforms
-        const arrayBuf = await file.arrayBuffer();
+      } else if (type === 'video') {
+        const video = document.createElement('video');
+        video.src = mediaUrl;
+        video.muted = true;
+        video.playsInline = true;
+        // Preload 'metadata' prevents browser from buffering whole 1-hour video into memory upfront
+        video.preload = 'metadata';
+
+        await new Promise<void>((resolve) => {
+          const onMeta = () => {
+            asset.width = video.videoWidth || 1920;
+            asset.height = video.videoHeight || 1080;
+            if (video.duration && isFinite(video.duration)) {
+              asset.duration = video.duration;
+            }
+            resolve();
+          };
+          if (video.readyState >= 1) {
+            onMeta();
+          } else {
+            video.addEventListener('loadedmetadata', onMeta, { once: true });
+            video.addEventListener('error', () => resolve(), { once: true });
+            setTimeout(resolve, 1000);
+          }
+        });
+
+        this.mediaCache.set(assetId, video);
+
+        // Safe audio extraction for video (try/catch to handle very long or uncompressed videos)
         try {
+          const arrayBuf = await file.arrayBuffer();
+          const audioBuf = await decodeAudioData(arrayBuf);
+          asset.audioBuffer = audioBuf;
+          if (!asset.duration || asset.duration <= 0) {
+            asset.duration = audioBuf.duration;
+          }
+          asset.waveformPeaks = computeWaveformPeaks(audioBuf, 2000);
+          this.audioBufferCache.set(assetId, audioBuf);
+          this.waveformPeaksCache.set(assetId, asset.waveformPeaks);
+        } catch {
+          // If video has no audio or decode exceeds memory limit
+        }
+      } else if (type === 'audio') {
+        try {
+          const arrayBuf = await file.arrayBuffer();
           const audioBuf = await decodeAudioData(arrayBuf);
           asset.audioBuffer = audioBuf;
           asset.duration = audioBuf.duration;
           asset.waveformPeaks = computeWaveformPeaks(audioBuf, 2000);
           this.audioBufferCache.set(assetId, audioBuf);
           this.waveformPeaksCache.set(assetId, asset.waveformPeaks);
-        } catch {
-          // If pure video without audio track
-        }
-
-        if (type === 'video') {
-          const video = document.createElement('video');
-          video.src = dataBase64;
-          video.muted = true;
-          video.playsInline = true;
-          video.preload = 'auto';
-          this.mediaCache.set(assetId, video);
-          asset.width = 1920;
-          asset.height = 1080;
+        } catch (err) {
+          console.warn('Audio decoding fallback:', err);
         }
       }
 
@@ -1072,6 +1153,12 @@ class StateStore {
 
   public removeAsset(assetId: string) {
     this.pushSnapshot();
+    const asset = this.state.project.assets.find((a) => a.id === assetId);
+    if (asset && asset.url && asset.url.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(asset.url);
+      } catch {}
+    }
     this.state.project.assets = this.state.project.assets.filter((a) => a.id !== assetId);
     this.mediaCache.delete(assetId);
     this.audioBufferCache.delete(assetId);

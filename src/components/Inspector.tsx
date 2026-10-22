@@ -420,13 +420,33 @@ export const Inspector: React.FC<InspectorProps> = ({ state }) => {
         {/* Type Specific: Solid Color */}
         {selectedLayer.type === 'solid' && (
           <div className="border border-[#26282e] rounded-lg p-2.5 bg-[#16171b] flex items-center justify-between">
-            <span className="text-slate-300 font-medium">Solid Color</span>
-            <input
-              type="color"
-              value={selectedLayer.solidColor || '#ffffff'}
-              onChange={(e) => store.updateLayer(selectedLayer.id, { solidColor: e.target.value })}
-              className="w-8 h-6 bg-transparent cursor-pointer rounded"
-            />
+            <div className="flex flex-col">
+              <span className="text-slate-300 font-medium">Solid Color</span>
+              {selectedLayer.solidColor === 'transparent' && (
+                <span className="text-[10px] text-emerald-400">Transparent (Background Removed)</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={selectedLayer.solidColor === 'transparent' ? '#000000' : (selectedLayer.solidColor || '#ffffff')}
+                onChange={(e) => store.updateLayer(selectedLayer.id, { solidColor: e.target.value })}
+                className="w-8 h-6 bg-transparent cursor-pointer rounded"
+                title="Choose solid color"
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  store.updateLayer(selectedLayer.id, {
+                    solidColor: selectedLayer.solidColor === 'transparent' ? '#1f2937' : 'transparent',
+                  })
+                }
+                className="text-[10px] px-2 py-0.5 rounded bg-[#22242b] hover:bg-[#2b2e37] text-slate-300 hover:text-white border border-[#2e313b]"
+                title="Toggle transparent background"
+              >
+                {selectedLayer.solidColor === 'transparent' ? 'Restore Color' : 'Remove BG'}
+              </button>
+            </div>
           </div>
         )}
 

@@ -238,7 +238,10 @@ export function renderComposition(
   // Render bottom-to-top: layers array index 0 is top track in AE
   const renderOrder = [...layers].reverse();
 
-  // Helper map for layer-to-layer pixel sampling (e.g. Set Channels, Set Matte)
+  // Only allocate and retain cross-layer pixel cache if an active effect actually references other layers
+  const needsCrossLayerSampling = layers.some(
+    (l) => l.effects && l.effects.some((e) => e.enabled && (e.effectId === 'ec.channel.setchannels' || e.effectId === 'ec.channel.setmatte'))
+  );
   const renderedLayerPixels = new Map<string, ImageData>();
 
   for (const layer of renderOrder) {
@@ -372,8 +375,10 @@ export function renderComposition(
       }
     }
 
-    // Cache rendered pixels for layer cross-references (Set Channels, Set Matte)
-    renderedLayerPixels.set(layer.id, currentImageData);
+    // Cache rendered pixels only if cross-layer sampling is required (Set Channels, Set Matte)
+    if (needsCrossLayerSampling) {
+      renderedLayerPixels.set(layer.id, currentImageData);
+    }
 
     // Write back processed pixels
     layerCtx.putImageData(currentImageData, 0, 0);
@@ -394,6 +399,7 @@ export function renderComposition(
     ctx.restore();
   }
 
+  renderedLayerPixels.clear();
   ctx.restore();
 }
 
@@ -407,8 +413,10 @@ function renderLayerContent(
 
   switch (layer.type) {
     case 'solid': {
-      ctx.fillStyle = layer.solidColor || '#ffffff';
-      ctx.fillRect(0, 0, width, height);
+      if (layer.solidColor && layer.solidColor !== 'transparent') {
+        ctx.fillStyle = layer.solidColor;
+        ctx.fillRect(0, 0, width, height);
+      }
       break;
     }
 
