@@ -152,3 +152,177 @@ export function blendSolid(
       return [srcR, srcG, srcB];
   }
 }
+
+export const STYLE_BLEND_MODES = [
+  'Normal',
+  'Dissolve',
+  'Darken',
+  'Multiply',
+  'Color Burn',
+  'Linear Burn',
+  'Darker Color',
+  'Lighten',
+  'Screen',
+  'Color Dodge',
+  'Linear Dodge (Add)',
+  'Lighter Color',
+  'Overlay',
+  'Soft Light',
+  'Hard Light',
+  'Vivid Light',
+  'Linear Light',
+  'Pin Light',
+  'Hard Mix',
+  'Difference',
+  'Exclusion',
+  'Subtract',
+  'Divide',
+  'Hue',
+  'Saturation',
+  'Color',
+  'Luminosity',
+];
+
+function burnVal(cb: number, cs: number): number {
+  if (cb >= 1.0) return 1.0;
+  if (cs <= 0.0) return 0.0;
+  return 1.0 - Math.min(1.0, (1.0 - cb) / cs);
+}
+
+function dodgeVal(cb: number, cs: number): number {
+  if (cb <= 0.0) return 0.0;
+  if (cs >= 1.0) return 1.0;
+  return Math.min(1.0, cb / (1.0 - cs));
+}
+
+function hardLightVal(cb: number, cs: number): number {
+  if (cs <= 0.5) return cb * 2.0 * cs;
+  const s = 2.0 * cs - 1.0;
+  return cb + s - cb * s;
+}
+
+function softLightVal(cb: number, cs: number): number {
+  if (cs <= 0.5) {
+    return cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb);
+  }
+  const d = cb <= 0.25 ? ((16.0 * cb - 12.0) * cb + 4.0) * cb : Math.sqrt(Math.max(0, cb));
+  return cb + (2.0 * cs - 1.0) * (d - cb);
+}
+
+function vividLightVal(cb: number, cs: number): number {
+  return cs <= 0.5 ? burnVal(cb, 2.0 * cs) : dodgeVal(cb, 2.0 * (cs - 0.5));
+}
+
+/**
+ * Blend modes for Layer Styles (derived 1:1 from styles.rs and _color_blend.rs)
+ */
+export function blendPhotoshop(
+  mode: number,
+  cbR: number, cbG: number, cbB: number,
+  csR: number, csG: number, csB: number
+): [number, number, number] {
+  switch (mode) {
+    case 0: // Normal
+      return [csR, csG, csB];
+    case 1: // Dissolve (per-pixel noise handled externally or pass-through)
+      return [csR, csG, csB];
+    case 2: // Darken
+      return [Math.min(cbR, csR), Math.min(cbG, csG), Math.min(cbB, csB)];
+    case 3: // Multiply
+      return [cbR * csR, cbG * csG, cbB * csB];
+    case 4: // Color Burn
+      return [burnVal(cbR, csR), burnVal(cbG, csG), burnVal(cbB, csB)];
+    case 5: // Linear Burn
+      return [
+        Math.max(0, cbR + csR - 1.0),
+        Math.max(0, cbG + csG - 1.0),
+        Math.max(0, cbB + csB - 1.0),
+      ];
+    case 6: { // Darker Color
+      const lSrc = luminance(csR, csG, csB);
+      const lBase = luminance(cbR, cbG, cbB);
+      return lSrc < lBase ? [csR, csG, csB] : [cbR, cbG, cbB];
+    }
+    case 7: // Lighten
+      return [Math.max(cbR, csR), Math.max(cbG, csG), Math.max(cbB, csB)];
+    case 8: // Screen
+      return [
+        cbR + csR - cbR * csR,
+        cbG + csG - cbG * csG,
+        cbB + csB - cbB * csB,
+      ];
+    case 9: // Color Dodge
+      return [dodgeVal(cbR, csR), dodgeVal(cbG, csG), dodgeVal(cbB, csB)];
+    case 10: // Linear Dodge (Add)
+      return [cbR + csR, cbG + csG, cbB + csB];
+    case 11: { // Lighter Color
+      const lSrc = luminance(csR, csG, csB);
+      const lBase = luminance(cbR, cbG, cbB);
+      return lSrc > lBase ? [csR, csG, csB] : [cbR, cbG, cbB];
+    }
+    case 12: // Overlay
+      return [hardLightVal(csR, cbR), hardLightVal(csG, cbG), hardLightVal(csB, cbB)];
+    case 13: // Soft Light
+      return [softLightVal(cbR, csR), softLightVal(cbG, csG), softLightVal(cbB, csB)];
+    case 14: // Hard Light
+      return [hardLightVal(cbR, csR), hardLightVal(cbG, csG), hardLightVal(cbB, csB)];
+    case 15: // Vivid Light
+      return [vividLightVal(cbR, csR), vividLightVal(cbG, csG), vividLightVal(cbB, csB)];
+    case 16: // Linear Light
+      return [
+        Math.min(1.0, Math.max(0, cbR + 2.0 * csR - 1.0)),
+        Math.min(1.0, Math.max(0, cbG + 2.0 * csG - 1.0)),
+        Math.min(1.0, Math.max(0, cbB + 2.0 * csB - 1.0)),
+      ];
+    case 17: // Pin Light
+      return [
+        csR <= 0.5 ? Math.min(cbR, 2.0 * csR) : Math.max(cbR, 2.0 * csR - 1.0),
+        csG <= 0.5 ? Math.min(cbG, 2.0 * csG) : Math.max(cbG, 2.0 * csG - 1.0),
+        csB <= 0.5 ? Math.min(cbB, 2.0 * csB) : Math.max(cbB, 2.0 * csB - 1.0),
+      ];
+    case 18: // Hard Mix
+      return [
+        cbR + csR >= 1.0 ? 1.0 : 0.0,
+        cbG + csG >= 1.0 ? 1.0 : 0.0,
+        cbB + csB >= 1.0 ? 1.0 : 0.0,
+      ];
+    case 19: // Difference
+      return [Math.abs(cbR - csR), Math.abs(cbG - csG), Math.abs(cbB - csB)];
+    case 20: // Exclusion
+      return [
+        cbR + csR - 2.0 * cbR * csR,
+        cbG + csG - 2.0 * cbG * csG,
+        cbB + csB - 2.0 * cbB * csB,
+      ];
+    case 21: // Subtract
+      return [Math.max(0, cbR - csR), Math.max(0, cbG - csG), Math.max(0, cbB - csB)];
+    case 22: // Divide
+      return [
+        csR <= 0 ? (cbR > 0 ? 1.0 : 0.0) : Math.min(1.0, cbR / csR),
+        csG <= 0 ? (cbG > 0 ? 1.0 : 0.0) : Math.min(1.0, cbG / csG),
+        csB <= 0 ? (cbB > 0 ? 1.0 : 0.0) : Math.min(1.0, cbB / csB),
+      ];
+    case 23: { // Hue
+      const hslS = rgbToHsl(csR, csG, csB);
+      const hslB = rgbToHsl(cbR, cbG, cbB);
+      return hslToRgb(hslS[0], hslB[1], hslB[2]);
+    }
+    case 24: { // Saturation
+      const hslS = rgbToHsl(csR, csG, csB);
+      const hslB = rgbToHsl(cbR, cbG, cbB);
+      return hslToRgb(hslB[0], hslS[1], hslB[2]);
+    }
+    case 25: { // Color
+      const hslS = rgbToHsl(csR, csG, csB);
+      const hslB = rgbToHsl(cbR, cbG, cbB);
+      return hslToRgb(hslS[0], hslS[1], hslB[2]);
+    }
+    case 26: { // Luminosity
+      const hslS = rgbToHsl(csR, csG, csB);
+      const hslB = rgbToHsl(cbR, cbG, cbB);
+      return hslToRgb(hslB[0], hslB[1], hslS[2]);
+    }
+    default:
+      return [csR, csG, csB];
+  }
+}

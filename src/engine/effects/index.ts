@@ -42,6 +42,18 @@ import {
   fxAudioWaveform,
 } from './generateEffects';
 
+import {
+  fxDropShadow,
+  fxInnerShadow,
+  fxOuterGlow,
+  fxInnerGlow,
+  fxBevelEmboss,
+  fxSatin,
+  fxColorOverlay,
+  fxGradientOverlay,
+  fxStroke as fxLayerStroke,
+} from './styleEffects';
+
 const EFFECT_RUNNERS: Record<string, EffectFn> = {
   // Channel (8)
   'ec.channel.setchannels': fxSetChannels,
@@ -77,6 +89,26 @@ const EFFECT_RUNNERS: Record<string, EffectFn> = {
   'ec.generate.ccthreads': fxCCThreads,
   'ec.generate.audiospectrum': fxAudioSpectrum,
   'ec.generate.audiowaveform': fxAudioWaveform,
+
+  // Layer Styles (9) - from styles.rs
+  'ec.style.dropshadow': fxDropShadow,
+  'dropShadow': fxDropShadow,
+  'ec.style.innershadow': fxInnerShadow,
+  'innerShadow': fxInnerShadow,
+  'ec.style.outerglow': fxOuterGlow,
+  'outerGlow': fxOuterGlow,
+  'ec.style.innerglow': fxInnerGlow,
+  'innerGlow': fxInnerGlow,
+  'ec.style.bevelemboss': fxBevelEmboss,
+  'bevelEmboss': fxBevelEmboss,
+  'ec.style.satin': fxSatin,
+  'satin': fxSatin,
+  'ec.style.coloroverlay': fxColorOverlay,
+  'colorOverlay': fxColorOverlay,
+  'ec.style.gradientoverlay': fxGradientOverlay,
+  'gradientOverlay': fxGradientOverlay,
+  'ec.style.stroke': fxLayerStroke,
+  'stroke': fxLayerStroke,
 };
 
 export function applyEffect(

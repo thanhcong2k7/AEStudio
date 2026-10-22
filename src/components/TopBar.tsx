@@ -354,6 +354,36 @@ export const TopBar: React.FC<TopBarProps> = ({ state, onOpenCompSettings, onOpe
                 >
                   New Adjustment Layer
                 </button>
+                <div className="my-1 border-t border-[#2d3038]"></div>
+                <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span>Layer Styles</span>
+                </div>
+                {[
+                  { id: 'ec.style.dropshadow', label: 'Drop Shadow' },
+                  { id: 'ec.style.innershadow', label: 'Inner Shadow' },
+                  { id: 'ec.style.outerglow', label: 'Outer Glow' },
+                  { id: 'ec.style.innerglow', label: 'Inner Glow' },
+                  { id: 'ec.style.bevelemboss', label: 'Bevel and Emboss' },
+                  { id: 'ec.style.satin', label: 'Satin' },
+                  { id: 'ec.style.coloroverlay', label: 'Color Overlay' },
+                  { id: 'ec.style.gradientoverlay', label: 'Gradient Overlay' },
+                  { id: 'ec.style.stroke', label: 'Stroke' },
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    onClick={() => {
+                      if (state.selectedLayerIds.length === 0 && state.project.layers.length > 0) {
+                        store.selectLayer(state.project.layers[0].id);
+                      }
+                      store.addEffectToSelected(st.id);
+                      setActiveMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-1 text-[11px] text-slate-300 hover:bg-[#2d62ea] hover:text-white pl-5 flex items-center justify-between"
+                  >
+                    <span>{st.label}</span>
+                  </button>
+                ))}
               </div>
             )}
           </div>

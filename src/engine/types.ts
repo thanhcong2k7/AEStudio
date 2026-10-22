@@ -79,7 +79,7 @@ export interface EffectParamSpec {
 export interface EffectSpec {
   id: string;
   name: string;
-  category: 'Channel' | 'Distort' | 'Generate';
+  category: 'Channel' | 'Distort' | 'Generate' | 'Layer Styles';
   params: EffectParamSpec[];
 }
 

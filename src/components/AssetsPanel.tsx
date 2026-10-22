@@ -128,7 +128,7 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ state }) => {
           }`}
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span>Effects (29)</span>
+          <span>Effects ({EFFECT_REGISTRY.length})</span>
         </button>
       </div>
 
@@ -242,7 +242,7 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ state }) => {
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
             <input
               type="text"
-              placeholder="Search 29 effects..."
+              placeholder={`Search ${EFFECT_REGISTRY.length} effects & styles...`}
               value={effectSearch}
               onChange={(e) => setEffectSearch(e.target.value)}
               className="w-full bg-[#121316] border border-[#2b2e36] focus:border-[#2d62ea] rounded pl-8 pr-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none"
@@ -251,7 +251,7 @@ export const AssetsPanel: React.FC<AssetsPanelProps> = ({ state }) => {
 
           {/* Category Filter */}
           <div className="flex gap-1 mb-2 overflow-x-auto pb-1">
-            {['All', 'Channel', 'Distort', 'Generate'].map((cat) => (
+            {['All', 'Channel', 'Distort', 'Generate', 'Layer Styles'].map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}

@@ -5,11 +5,12 @@ A browser-based motion graphics, visual effects, and video compositing suite ins
 ## Features
 
 - **Multi-Track Timeline**: Layer ordering, track controls (mute, solo, lock, hide), in/out trimming, keyframe interpolation, and property twirling.
-- **29-Effect Compositing Engine**:
-  - **Color & Channel**: Curves, Levels, Hue/Saturation, Color Balance, Invert, Tint, Posterize, Threshold.
-  - **Distort & Geometry**: Corner Pin, Bulge, Ripple, Twirl, Wave Warp, Polar Coordinates, Mirror, Displace.
-  - **Generate & Stylize**: Linear/Radial Gradients, Noise, Vignette, Grid, Checkerboard, Stroke, Drop Shadow, Glow.
-  - **Audio & Procedural**: FFT Audio Spectrum / Waveform visualization, procedural wiggle / jitter evaluators.
+- **38-Effect Compositing Engine**:
+  - **Layer Styles (9 from styles.rs)**: Drop Shadow, Inner Shadow, Outer Glow, Inner Glow, Bevel & Emboss (3D lighting, surface normal computation), Satin, Color Overlay, Gradient Overlay, and Stroke (Inside, Outside, Center) with all 27 Photoshop blend modes.
+  - **Color & Channel (8)**: Set Channels, Shift Channels, Channel Combiner, Minimax, Arithmetic, Solid Composite, Remove Color Matting, Set Matte.
+  - **Distort & Geometry (10)**: Twirl, Spherize, Bulge, Wave Warp, Ripple, Mirror, Offset, Polar Coordinates, Transform, Corner Pin.
+  - **Generate & Stylize (11)**: Fractal, Scribble, Stroke, Vegas, Write-on, Paint Bucket, Eyedropper Fill, CC Glue Gun, CC Threads, Audio Spectrum, Audio Waveform.
+  - **Audio & Procedural**: FFT Audio Spectrum / Waveform visualization, procedural wiggle / jitter evaluators with stride-based O(1) memory for long 1h+ videos.
 - **Interactive Canvas Viewport**: Real-time rendering, interactive transform gizmos, rotation handles, aspect-ratio scaling, snapping guidelines, and live real-time FPS counter.
 - **Inspector Panel**: Layer transform properties (position, scale, rotation, opacity, anchor point), blending modes, effect parameter controls, and per-property keyframe toggles.
 - **Media Ingestion & Asset Library**: Drag-and-drop local images, video clips, and audio files with auto-waveform extraction and memory-safe streaming for long media (1h+).
